@@ -1,3 +1,3 @@
 export type TimeSeries = {
-  [key: string]: number;
+  [key: number]: number;
 };
