@@ -43,7 +43,6 @@ export class LineChartComponent {
 
     this.ctx = this.canvas.nativeElement.getContext('2d');
 
-    this.drawAxis();
     const { max, min } = this.findMinMax(this.lineData);
 
     const firstTimestamp = Object.keys(this.lineData[0])[0];
@@ -52,6 +51,7 @@ export class LineChartComponent {
     const timeDifferenceInSeconds = timeDifferenceInMilliseconds / 1000;
     this.calculateXYCoordinates((this.canvasWidth - 70) / timeDifferenceInSeconds, (this.canvasHeight - 100) / (max - min), max);
     this.enableMouseMove();
+    this.drawAxis(max,min);
   }
 
 
@@ -142,7 +142,7 @@ export class LineChartComponent {
     });
   }
 
-  drawAxis() {
+  drawAxis(maxValue: number, minValue: number) {
     if (!this.ctx)
       return;
     this.ctx.beginPath();
