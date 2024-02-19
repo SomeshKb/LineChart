@@ -1,5 +1,5 @@
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { Component, ElementRef, Inject, PLATFORM_ID, Renderer2, ViewChild } from '@angular/core';
+import { Component, ElementRef, Inject, PLATFORM_ID, ViewChild } from '@angular/core';
 import { TimeSeries } from '../types';
 import * as data from './../data.json';
 
@@ -15,18 +15,31 @@ export class LineChartComponent {
   @ViewChild("canvas") canvas!: ElementRef<HTMLCanvasElement>;
   ctx: CanvasRenderingContext2D | null = null;
 
-  public lineData: TimeSeries[] =data.data;
-  public isBrowser: boolean;
-  public pointData: any[] = [];
+  lineWidth = 1;
+  lineColor = "#000"
+  circleColor = "#000"
+  circleRadius = 3;
+  circleHoverRadius = 6;
+  canvasWidth = 0;
+  canvasHeight = 0;
+  lineData: TimeSeries[] = data.data as any[];
+  isBrowser: boolean;
+  pointData: any[] = [];
   hoveredIndex = -1;
-  constructor(@Inject(PLATFORM_ID) platformId: Object, private renderer2: Renderer2) {
+
+  constructor(@Inject(PLATFORM_ID) platformId: Object) {
     this.isBrowser = isPlatformBrowser(platformId);
   }
 
   ngAfterViewInit(): void {
+
+
     console.log(data);
     if (!this.canvas)
       return;
+
+    this.canvasHeight = this.canvas.nativeElement.height;
+    this.canvasWidth = this.canvas.nativeElement.width;
 
     this.ctx = this.canvas.nativeElement.getContext('2d');
 
@@ -37,22 +50,49 @@ export class LineChartComponent {
     const lastTimestamp = Object.keys(this.lineData[this.lineData.length - 1])[0];
     const timeDifferenceInMilliseconds = this.getTimeDifferenceInMilliseconds(firstTimestamp, lastTimestamp);
     const timeDifferenceInSeconds = timeDifferenceInMilliseconds / 1000;
-    this.calculateXYCoordinates(550 / timeDifferenceInSeconds, 400 / (max - min), max);
-    this.onMouseMove();
-
+    this.calculateXYCoordinates((this.canvasWidth - 70) / timeDifferenceInSeconds, (this.canvasHeight - 100) / (max - min), max);
+    this.enableMouseMove();
   }
 
 
-  onMouseMove() {
+  plotTravesingLine(mouseX: number, mouseY: number) {
+    if (!this.ctx)
+      return;
+    this.ctx.beginPath();
+    this.ctx.moveTo(51, mouseY);
+    this.ctx.lineTo(mouseX, mouseY)
+    this.ctx.lineTo(mouseX, this.canvasHeight - 51);
+    this.ctx.stroke();
+  }
 
+  plotText(mouseX: number, mouseY: number, text: string) {
+    if (!this.ctx)
+      return;
+    this.ctx.font = "8px Comic Sans MS";
+    this.ctx.strokeStyle = "blue";
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeText(text, mouseX, mouseY);
+  }
+
+  enableMouseMove() {
     this.canvas.nativeElement.addEventListener("mousemove", (event) => {
       const mouseEvent = event as MouseEvent;
-
       let skipRest = false;
-
       const mouseX = mouseEvent.clientX - this.canvas.nativeElement.getBoundingClientRect().left;
       const mouseY = mouseEvent.clientY - this.canvas.nativeElement.getBoundingClientRect().top;
 
+      if (!this.ctx)
+        return;
+      if (mouseX > 50 && mouseY > 10 && mouseY < (this.canvasHeight - 51) && mouseX < (this.canvasWidth - 1)) {
+        this.ctx.clearRect(51, 0, this.canvasWidth, this.canvasHeight - 51);
+        this.plotTravesingLine(mouseX, mouseY);
+        this.plotCircle();
+        this.plotLine();
+      } else {
+        this.ctx.clearRect(51, 0, this.canvasWidth, this.canvasHeight - 51);
+        this.plotCircle();
+        this.plotLine();
+      }
       this.pointData.forEach((point, index) => {
         if (!this.ctx)
           return;
@@ -62,10 +102,11 @@ export class LineChartComponent {
         if (distance <= 5) {
           skipRest = true;
           this.hoveredIndex = index;
-          this.ctx.clearRect(51, 0, 700, 449);
+          this.ctx.clearRect(51, 0, this.canvasWidth, this.canvasHeight - 51);
+          this.plotTravesingLine(mouseX, mouseY);
           this.plotLine();
           this.plotCircle();
-          setTimeout(() => { }, 1000);
+          this.plotText(mouseX + 10, mouseY, new Date(point.time).toLocaleString() + " : " + point.value);
         }
       });
 
@@ -77,10 +118,25 @@ export class LineChartComponent {
         if (!this.ctx)
           return;
         this.hoveredIndex = -1;
-        this.ctx.clearRect(51, 0, 700, 449);
+        this.ctx.clearRect(51, 0, this.canvasWidth, this.canvasHeight - 51);
         this.plotLine();
         this.plotCircle();
       }
+
+    });
+
+
+  }
+
+
+  onMouseMove() {
+    this.canvas.nativeElement.addEventListener("mousemove", (event) => {
+      const mouseEvent = event as MouseEvent;
+
+      let skipRest = false;
+
+      const mouseX = mouseEvent.clientX - this.canvas.nativeElement.getBoundingClientRect().left;
+      const mouseY = mouseEvent.clientY - this.canvas.nativeElement.getBoundingClientRect().top;
 
 
     });
@@ -89,11 +145,11 @@ export class LineChartComponent {
   drawAxis() {
     if (!this.ctx)
       return;
-    this.ctx.lineWidth = 1;
     this.ctx.beginPath();
     this.ctx.moveTo(50, 20);
-    this.ctx.lineTo(50, 450)
-    this.ctx.lineTo(650, 450);
+    this.ctx.lineTo(50, this.canvasHeight - 50)
+    this.ctx.lineTo(this.canvasWidth - 5, this.canvasHeight - 50);
+    this.ctx.lineWidth = 0.3;
     this.ctx.stroke();
   }
 
@@ -137,8 +193,10 @@ export class LineChartComponent {
         this.ctx.moveTo(point.x, point.y);
 
       this.ctx.lineTo(point.x, point.y);
+      this.ctx.strokeStyle = this.lineColor;
 
     });
+    this.ctx.lineWidth = this.lineWidth;
     this.ctx.stroke();
 
 
@@ -152,11 +210,12 @@ export class LineChartComponent {
 
       this.ctx.beginPath();
       if (this.hoveredIndex == index) {
-        this.ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI);
+        this.ctx.arc(point.x, point.y, this.circleHoverRadius, 0, 2 * Math.PI);
       } else {
-        this.ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI);
+        this.ctx.arc(point.x, point.y, this.circleRadius, 0, 2 * Math.PI);
       }
-
+      this.ctx.lineWidth = this.lineWidth;
+      this.ctx.strokeStyle = this.circleColor;
       this.ctx.stroke();
     });
   }
